@@ -1,24 +1,14 @@
-"""
-This sample demonstrates a simple skill built with the Amazon Alexa Skills Kit.
-The Intent Schema, Custom Slots, and Sample Utterances for this skill, as well
-as testing instructions are located at http://amzn.to/1LzFrj6
-
-For additional samples, visit the Alexa Skills Kit Getting Started guide at
-http://amzn.to/1LGWsLG
-"""
-
-from __future__ import print_function
-
 import paho.mqtt.client as paho
-import os, urlparse
+from urllib.parse import urlparse
+import os
 import sys
 import json
-import datetime
-import random
 
 mqttc = paho.Client()
 
 def lambda_handler(event, context):
+    initMQTT()
+
     """ Route the incoming request based on type (LaunchRequest, IntentRequest,
     etc.) The JSON body of the request is provided in the event parameter.
     """
@@ -35,8 +25,6 @@ def lambda_handler(event, context):
     #         "amzn1.echo-sdk-ams.app.[unique-value-here]"):
     #     raise ValueError("Invalid Application ID")
 
-    initMQTT()
-
     if event['session']['new']:
         on_session_started({'requestId': event['request']['requestId']},
                            event['session'])
@@ -50,6 +38,13 @@ def lambda_handler(event, context):
 
 
 def on_session_started(session_started_request, session):
+    # Publish a message
+    data = {"Command":"step","Target":"1"}
+    message = json.dumps(data)
+    print("message is:"+message)
+    #SendMQTT(data)
+    mqttc.publish("ces/slap", message )
+
     """ Called when the session starts """
     print(session["user"]["userId"])
 
@@ -79,8 +74,18 @@ def on_intent(intent_request, session):
     intent_name = intent_request['intent']['name']
 
     # Dispatch to your skill's intent handlers
-    if intent_name == "PlayGame":
-        return counter_intent(intent, session)
+    if intent_name == "ShowCamera":
+        return ShowCamera_session(intent, session)
+    elif intent_name == "ShowPhoto":
+        return ShowPhoto_session(intent, session)
+    elif intent_name == "ShowVideo":
+        return ShowVideo_session(intent, session)
+    elif intent_name == "GoToHomeScreen":
+        return GoToHomeScreen_session(intent, session)
+    elif intent_name == "ShowMusic":
+        return ShowMusic_session(intent, session)
+    elif intent_name == "PhoneCall":
+        return PhoneCall_session(intent, session)
     elif intent_name == "AMAZON.HelpIntent":
         return get_welcome_response()
     elif intent_name == "AMAZON.CancelIntent" or intent_name == "AMAZON.StopIntent":
@@ -114,21 +119,20 @@ def on_session_ended(session_ended_request, session):
 
 # Define event callbacks
 def getnow():
-    #print(datetime.datetime.utcnow() + datetime.timedelta(minutes=30))
-    return str(datetime.datetime.utcnow() + datetime.timedelta(minutes=30))
+    #return str(datetime.now()) + " "
+    return " "
 
-def on_connect(client, userdata, flags, rc):
-#def on_connect(mosq, obj, rc):
-    print(getnow() + ": on_connect: " + str(rc))
+def on_connect(mosq, obj, rc):
+    print(getnow() + "rc: " + str(rc))
 
 def on_message(mosq, obj, msg):
-    print(getnow() + ": on_message: " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+    print(getnow() + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
 
 def on_publish(mosq, obj, mid):
-    print(getnow() + ": on_publish: " + "mid: " + str(mid))
+    print(getnow()+ "mid: " + str(mid))
 
 def on_subscribe(mosq, obj, mid, granted_qos):
-    print(getnow() + ": on_subscribe: " + str(mid) + " " + str(granted_qos))
+    print(getnow() + "Subscribed: " + str(mid) + " " + str(granted_qos))
 
 def on_log(mosq, obj, level, string):
     print(getnow() + string)
@@ -142,11 +146,12 @@ def get_welcome_response():
 
     session_attributes = {}
     card_title = "Welcome"
-    speech_output = "OK. Let us play Slap Slap, what level do you want to play?"
+    speech_output = "Hi, I am Lucy from Compal electronic. " \
+                    "Please tell me what you want to do"
     # If the user either does not reply to the welcome message or says something
     # that is not understood, they will be prompted again with this text.
     reprompt_text = "Please tell me what you want to do."
-    should_end_session = False
+    should_end_session = True
        
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
@@ -160,8 +165,6 @@ def handle_session_end_request():
     should_end_session = True
     return build_response({}, build_speechlet_response(
         card_title, speech_output, None, should_end_session))
-
-
 
 def initMQTT():    
     # Assign event callbacks
@@ -177,7 +180,7 @@ def initMQTT():
     #url_str = os.environ.get('CLOUDMQTT_URL', 'mqtt://localhost:1883')  #CCI_ROGER
     #url_str = os.environ.get('CLOUDMQTT_URL', 'mqtt://ec2-54-165-229-254.compute-1.amazonaws.com:1883')
     url_str = os.environ.get('CLOUDMQTT_URL', 'mqtt://35.185.154.72:1883')
-    url = urlparse.urlparse(url_str)
+    url = urlparse(url_str)
 
     # Connect
     #mqttc.username_pw_set(url.username, url.password) #CCI_ROGER
@@ -188,70 +191,87 @@ def ShowCamera_session(intent, session):
     card_title = intent['name']
     session_attributes = {}
     should_end_session = True
-
-    # Publish a message
     data = {"Command":"Start","Target":"Camera"}
-    message = json.dumps(data)
-    print("message is:"+message)
-    #SendMQTT(data)
-    mqttc.publish("ces/camera", message )
 
+    SendMQTT(data)
+    
     speech_output = "OK, I have show the camera."
     reprompt_text = "I'm not sure what you are saying, please say again."    
     
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
-def OrderPizza_session(intent, session):
+def ShowPhoto_session(intent, session):
     card_title = intent['name']
     session_attributes = {}
-    should_end_session = False
+    should_end_session = True
+    data = {"Command":"Start","Target":"Photo"}
 
-    taste=intent['slots']['taste'].get('value')
-    if taste is None:
-        print("valuse NONE, taste: "+str(intent['slots']['taste']))
-        #data = {"Command":"OrderPizza","Pages":str(random.randint(1, 10))}
-        data = {"Command":"OrderPizza","Pages":str(1)}
-        speech_output = "Hi ! Peter. Please choose your flavor. 1.Hawaiian Feast"
-        returnStr = build_response(session_attributes, build_directives_response(speech_output, build_directives('taste')))
-    else:
-        print(str(taste))
-        data = {"Command":"OrderPizza","Pages":str(2)}
-        speech_output = "Got it ! number 1 is added to your order."
-        reprompt_text = "I'm not sure what you are saying, please say again."    
-        returnStr = build_response(session_attributes, build_speechlet_response(
+    SendMQTT(data)
+    
+    speech_output = "OK, I have show the Photo."
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
-    # Publish a message
-    message = json.dumps(data)
-    print("message is:"+message)
-    #SendMQTT(data)
-    mqttc.publish("ces/order_pizza", message)
+def ShowVideo_session(intent, session):
+    card_title = intent['name']
+    session_attributes = {}
+    should_end_session = True
+    data = {"Command":"Start","Target":"Video"}
 
-    print(json.dumps(returnStr))
-    return returnStr
-def counter_intent(intent, session):
-    session_attributes = session['attributes']
+    SendMQTT(data)
+    
+    speech_output = "OK, I have show the Video."
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
 
-    if "counter" in session_attributes:
-        session_attributes['counter'] += 1
+def GoToHomeScreen_session(intent, session):
+    card_title = intent['name']
+    session_attributes = {}
+    should_end_session = True
+    data = {"Command":"Start","Target":"HomeScreen"}
 
-    else:
-        session_attributes['counter'] = 1
+    SendMQTT(data)
+    
+    speech_output = "OK."
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
 
-    return conversation("counter_intent",
-                        session_attributes['counter'],
-                        session_attributes)
+def ShowMusic_session(intent, session):
+    card_title = intent['name']
+    session_attributes = {}
+    should_end_session = True
+    data = {"Command":"Start","Target":"Music"}
 
-def conversation(title, body, session_attributes):
-    speechlet = {}
-    speechlet['outputSpeech'] = build_PlainSpeech(body)
-    speechlet['card'] = build_SimpleCard(title, body)
-    speechlet['shouldEndSession'] = False
-    return build_response(speechlet,
-                          session_attributes=session_attributes)
+    SendMQTT(data)
+    
+    speech_output = "OK, I will play the music"
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
 
+def PhoneCall_session(intent, session):
+    card_title = intent['name']
+    session_attributes = {}
+    should_end_session = True
+    data = {"Command":"Start","Target":"PhoneCall"}
 
+    SendMQTT(data)
+    
+    speech_output = "OK."
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+        
+        
 def set_color_in_session(intent, session):
     """ Sets the color in the session and prepares the speech to reply to the
     user.
@@ -279,8 +299,10 @@ def set_color_in_session(intent, session):
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
+
 def create_favorite_color_attributes(favorite_color):
     return {"favoriteColor": favorite_color}
+
 
 def get_color_from_session(intent, session):
     session_attributes = {}
@@ -303,21 +325,7 @@ def get_color_from_session(intent, session):
         intent['name'], speech_output, reprompt_text, should_end_session))
 
 # --------------- Helpers that build all of the responses ----------------------
-def build_directives(slot_name):
-    return [{
-        'type': 'Dialog.ElicitSlot',
-        'slotToElicit': slot_name
-    }]
 
-def build_directives_response(output, directives):
-    return {
-        'outputSpeech': {
-            'type': 'PlainText',
-            'text': output
-        },
-        'shouldEndSession': False,
-         'directives':directives
-    }
 
 def build_speechlet_response(title, output, reprompt_text, should_end_session):
     return {
@@ -338,6 +346,7 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
         },
         'shouldEndSession': should_end_session
     }
+
 
 def build_response(session_attributes, speechlet_response):
     return {
