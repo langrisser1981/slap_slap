@@ -3,12 +3,11 @@ from urllib.parse import urlparse
 import os
 import sys
 import json
+import random
 
 mqttc = paho.Client()
 
 def lambda_handler(event, context):
-    initMQTT()
-
     """ Route the incoming request based on type (LaunchRequest, IntentRequest,
     etc.) The JSON body of the request is provided in the event parameter.
     """
@@ -28,6 +27,7 @@ def lambda_handler(event, context):
     if event['session']['new']:
         on_session_started({'requestId': event['request']['requestId']},
                            event['session'])
+                           
 
     if event['request']['type'] == "LaunchRequest":
         return on_launch(event['request'], event['session'])
@@ -38,17 +38,8 @@ def lambda_handler(event, context):
 
 
 def on_session_started(session_started_request, session):
-    # Publish a message
-    data = {"Command":"step","Target":"1"}
-    message = json.dumps(data)
-    print("message is:"+message)
-    #SendMQTT(data)
-    mqttc.publish("ces/slap", message )
-
     """ Called when the session starts """
     print(session["user"]["userId"])
-
-
     print("on_session_started requestId=" + session_started_request['requestId']
           + ", sessionId=" + session['sessionId'])
 
@@ -57,7 +48,6 @@ def on_launch(launch_request, session):
     """ Called when the user launches the skill without specifying what they
     want
     """
-
     print("on_launch requestId=" + launch_request['requestId'] +
           ", sessionId=" + session['sessionId'])
     # Dispatch to your skill's launch
@@ -66,7 +56,6 @@ def on_launch(launch_request, session):
 
 def on_intent(intent_request, session):
     """ Called when the user specifies an intent for this skill """
-
     print("on_intent requestId=" + intent_request['requestId'] +
           ", sessionId=" + session['sessionId'])
 
@@ -74,24 +63,15 @@ def on_intent(intent_request, session):
     intent_name = intent_request['intent']['name']
 
     # Dispatch to your skill's intent handlers
-    if intent_name == "ShowCamera":
-        return ShowCamera_session(intent, session)
-    elif intent_name == "ShowPhoto":
-        return ShowPhoto_session(intent, session)
-    elif intent_name == "ShowVideo":
-        return ShowVideo_session(intent, session)
-    elif intent_name == "GoToHomeScreen":
-        return GoToHomeScreen_session(intent, session)
-    elif intent_name == "ShowMusic":
-        return ShowMusic_session(intent, session)
-    elif intent_name == "PhoneCall":
-        return PhoneCall_session(intent, session)
+    if intent_name == "play":
+        return talk(intent, session)
     elif intent_name == "AMAZON.HelpIntent":
         return get_welcome_response()
     elif intent_name == "AMAZON.CancelIntent" or intent_name == "AMAZON.StopIntent":
         return handle_session_end_request()
     else:
-        raise ValueError("Invalid intent")
+        return talk(intent, session)
+        #raise ValueError("Invalid intent")
         
     #if intent_name == "MyColorIsIntent":
     #    return set_color_in_session(intent, session)
@@ -115,56 +95,26 @@ def on_session_ended(session_ended_request, session):
     # add cleanup logic here
 
 # --------------- Functions that control the skill's behavior ------------------
-
-
 # Define event callbacks
 def getnow():
     #return str(datetime.now()) + " "
     return " "
 
 def on_connect(mosq, obj, rc):
-    print(getnow() + "rc: " + str(rc))
+    print(getnow() + "on_connect: " + str(rc))
 
 def on_message(mosq, obj, msg):
     print(getnow() + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
 
 def on_publish(mosq, obj, mid):
-    print(getnow()+ "mid: " + str(mid))
+    print(getnow()+ "on_publish: " + str(mid))
 
 def on_subscribe(mosq, obj, mid, granted_qos):
-    print(getnow() + "Subscribed: " + str(mid) + " " + str(granted_qos))
+    print(getnow() + "on_subscribe: " + str(mid) + " " + str(granted_qos))
 
 def on_log(mosq, obj, level, string):
     print(getnow() + string)
-    
-    
 
-def get_welcome_response():
-    """ If we wanted to initialize the session to have some attributes we could
-    add those here
-    """
-
-    session_attributes = {}
-    card_title = "Welcome"
-    speech_output = "Hi, I am Lucy from Compal electronic. " \
-                    "Please tell me what you want to do"
-    # If the user either does not reply to the welcome message or says something
-    # that is not understood, they will be prompted again with this text.
-    reprompt_text = "Please tell me what you want to do."
-    should_end_session = True
-       
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
-
-
-def handle_session_end_request():
-    card_title = "Session Ended"
-    speech_output = "Thank you for trying the Alexa Skills Kit sample. " \
-                    "Have a nice day! "
-    # Setting this to true ends the session and exits the skill.
-    should_end_session = True
-    return build_response({}, build_speechlet_response(
-        card_title, speech_output, None, should_end_session))
 
 def initMQTT():    
     # Assign event callbacks
@@ -184,93 +134,99 @@ def initMQTT():
 
     # Connect
     #mqttc.username_pw_set(url.username, url.password) #CCI_ROGER
+    print("mqtt info, host:" + str(url.hostname) + ", port:" + str(url.port))
     mqttc.connect(url.hostname, url.port)
 
 
-def ShowCamera_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
-    should_end_session = True
-    data = {"Command":"Start","Target":"Camera"}
+def get_welcome_response():
+    """ If we wanted to initialize the session to have some attributes we could
+    add those here
+    """
 
-    SendMQTT(data)
-    
-    speech_output = "OK, I have show the camera."
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
+    session_attributes = {'counter':1}
+    card_title = "Welcome"
+    #speech_output = "Hi, I am Lucy from Compal electronic. " \                    "Please tell me what you want to do"
+    speech_output = get_conversation(session_attributes['counter'])
+    # If the user either does not reply to the welcome message or says something
+    # that is not understood, they will be prompted again with this text.
+    reprompt_text = "Please tell me what you want to do."
+    should_end_session = False
+       
+    #return build_response(session_attributes, build_speechlet_response(card_title, speech_output, reprompt_text, should_end_session))
+    return build_response(session_attributes, build_speechlet_ssml_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
-def ShowPhoto_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
+
+def handle_session_end_request():
+    card_title = "Session Ended"
+    #speech_output = "Thank you for trying the Alexa Skills Kit sample. " \                    "Have a nice day! "
+    speech_output = "bye bye~ Have a nice day!"
+    # Setting this to true ends the session and exits the skill.
     should_end_session = True
-    data = {"Command":"Start","Target":"Photo"}
+    return build_response({}, build_speechlet_response(
+        card_title, speech_output, None, should_end_session))
 
-    SendMQTT(data)
-    
-    speech_output = "OK, I have show the Photo."
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
 
-def ShowVideo_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
-    should_end_session = True
-    data = {"Command":"Start","Target":"Video"}
-
-    SendMQTT(data)
-    
-    speech_output = "OK, I have show the Video."
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
-
-def GoToHomeScreen_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
-    should_end_session = True
-    data = {"Command":"Start","Target":"HomeScreen"}
-
-    SendMQTT(data)
-    
-    speech_output = "OK."
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
-
-def ShowMusic_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
-    should_end_session = True
-    data = {"Command":"Start","Target":"Music"}
-
-    SendMQTT(data)
-    
-    speech_output = "OK, I will play the music"
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
-
-def PhoneCall_session(intent, session):
-    card_title = intent['name']
-    session_attributes = {}
-    should_end_session = True
-    data = {"Command":"Start","Target":"PhoneCall"}
-
-    SendMQTT(data)
-    
-    speech_output = "OK."
-    reprompt_text = "I'm not sure what you are saying, please say again."    
-    
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
+def talk(intent, session):
+    session_attributes = session['attributes']
+    if "counter" in session_attributes:
+        session_attributes['counter'] += 1
+    else:
+        session_attributes['counter'] = 1
         
+    card_title = intent['name']
+    counter = session_attributes['counter']
+    if counter > 9:
+        should_end_session = True
+    else:
+        should_end_session = False
+
+    #speech_output = "<speak>"+"number:"+str(counter)+"Welcome to Car-Fu. <audio src='soundbank://soundlibrary/transportation/amzn_sfx_car_accelerate_01' />     You can order a ride, or request a fare estimate.     Which will it be?</speak>"
+    speech_output = get_conversation(counter)
+    reprompt_text = "I'm not sure what you are saying, please say again."    
+    
+    return build_response(session_attributes, build_speechlet_ssml_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+
+
+def get_conversation(num):
+    # Publish a message
+    data = {"Command":"step","Target":num}
+    message = json.dumps(data)
+    mqttc.publish("ces/slap", message )
+    print("mqtt message:"+message)
+
+    group_of_items = ["<audio src='soundbank://soundlibrary/animals/amzn_sfx_cat_meow_1x_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_dog_med_bark_1x_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_elephant_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_horse_huff_whinny_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_lion_roar_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_rat_squeaks_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_rooster_crow_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_wolf_howl_02'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_bird_chickadee_chirp_1x_01'/>",
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_crow_caw_1x_02'/>"]
+    num_to_select = 5
+    #audio = ", ".join(group_of_items[:num_to_select])
+    audio = ", ".join(random.sample(set(group_of_items), num_to_select))
+    
+    dialogs = {
+        1:"<speak>OK! Let us play Slap Slap, what level do you want to play?</speak>",
+        2:"<speak>Let us start the game, Are you ready?</speak>",
+        3:"<speak>five, four, three, two, one. Slap the dog sound!"+audio+"</speak>",
+        4:"<speak>Next, slap the cat sound!"+audio+"</speak>",
+        5:"<speak>Oops! You are lose! Do you wanna resume the game or start the punishment?</speak>",
+        6:"<speak>OK! Welcome back, What level do you want to play?</speak>",
+        7:"<speak>Let’s start the game, Are you ready?</speak>",
+        8:"<speak>five, four, three, two, one. Slap number55 in blue square with cat sound!"+audio+"</speak>",
+        9:"<speak>Oops! You are lose! Do you wanna resume the game or start the punishment?</speak>",
+        10:"<speak>bye bye</speak>"
+    }
+    
+    dialog = dialogs.get(num, "I am not sure what you are saying, please say again.")
+    print("speech_output:"+dialog)
+    return dialog
+
         
 def set_color_in_session(intent, session):
     """ Sets the color in the session and prepares the speech to reply to the
@@ -325,6 +281,25 @@ def get_color_from_session(intent, session):
         intent['name'], speech_output, reprompt_text, should_end_session))
 
 # --------------- Helpers that build all of the responses ----------------------
+def build_speechlet_ssml_response(title, output, reprompt_text, should_end_session):
+    return {
+        'outputSpeech': {
+            'type': 'SSML',
+            'ssml': output
+        },
+        'card': {
+            'type': 'Simple',
+            'title': 'SessionSpeechlet - ' + title,
+            'content': 'SessionSpeechlet - ' + output
+        },
+        'reprompt': {
+            'outputSpeech': {
+                'type': 'PlainText',
+                'text': reprompt_text
+            }
+        },
+        'shouldEndSession': should_end_session
+    }
 
 
 def build_speechlet_response(title, output, reprompt_text, should_end_session):
@@ -354,3 +329,6 @@ def build_response(session_attributes, speechlet_response):
         'sessionAttributes': session_attributes,
         'response': speechlet_response
     }
+
+
+initMQTT()
