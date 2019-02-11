@@ -101,7 +101,7 @@ def getnow():
     return " "
 
 def on_connect(mosq, obj, rc):
-    print(getnow() + "on_connect: " + str(rc))
+    print(getnow() + "on_connect:'mqtt://35.185.154.72:1883', " + str(rc))
 
 def on_message(mosq, obj, msg):
     print(getnow() + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
@@ -134,8 +134,9 @@ def initMQTT():
 
     # Connect
     #mqttc.username_pw_set(url.username, url.password) #CCI_ROGER
-    print("mqtt info, host:" + str(url.hostname) + ", port:" + str(url.port))
     mqttc.connect(url.hostname, url.port)
+    #mqttc.loop_start()
+    print("mqtt info, host:" + str(url.hostname) + ", port:" + str(url.port))
 
 
 def get_welcome_response():
@@ -191,10 +192,11 @@ def talk(intent, session):
 
 def get_conversation(num):
     # Publish a message
-    data = {"Command":"step","Target":num}
+    mqttc.loop()
+    data = {"Command":"SlapSlap","Pages":str(num)}
     message = json.dumps(data)
+    print("mqtt message=> topic:ces/slap, payload:"+message)
     mqttc.publish("ces/slap", message )
-    print("mqtt message:"+message)
 
     group_of_items = ["<audio src='soundbank://soundlibrary/animals/amzn_sfx_cat_meow_1x_01'/>",
             "<audio src='soundbank://soundlibrary/animals/amzn_sfx_dog_med_bark_1x_01'/>",
@@ -209,6 +211,23 @@ def get_conversation(num):
     num_to_select = 5
     #audio = ", ".join(group_of_items[:num_to_select])
     audio = ", ".join(random.sample(set(group_of_items), num_to_select))
+    
+    audio_fixed = {
+        3:"<audio src='soundbank://soundlibrary/animals/amzn_sfx_bird_chickadee_chirp_1x_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_sheep_bleat_03'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_cat_meow_1x_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_dog_med_bark_1x_01'/>",
+        4:"<audio src='soundbank://soundlibrary/animals/amzn_sfx_elephant_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_horse_huff_whinny_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_rooster_crow_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_cat_meow_1x_01'/>",
+        8:"<audio src='soundbank://soundlibrary/animals/amzn_sfx_sheep_baa_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_wolf_howl_02'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_bear_groan_roar_01'/>" + \
+            "<audio src='soundbank://soundlibrary/animals/amzn_sfx_dog_med_bark_1x_01'/>",
+    }
+    audio = audio_fixed.get(num, "")
+    print("num:"+str(num)+", audio:"+audio)
     
     dialogs = {
         1:"<speak>OK! Let us play Slap Slap, what level do you want to play?</speak>",
