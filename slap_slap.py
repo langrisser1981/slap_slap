@@ -7,35 +7,6 @@ import random
 
 mqttc = paho.Client()
 
-def lambda_handler(event, context):
-    """ Route the incoming request based on type (LaunchRequest, IntentRequest,
-    etc.) The JSON body of the request is provided in the event parameter.
-    """
-    print("event.session.application.applicationId=" +
-          event['session']['application']['applicationId'])
-    print(event["context"]["System"]["device"])
-
-    """
-    Uncomment this if statement and populate with your skill's application ID to
-    prevent someone else from configuring a skill that sends requests to this
-    function.
-    """
-    # if (event['session']['application']['applicationId'] !=
-    #         "amzn1.echo-sdk-ams.app.[unique-value-here]"):
-    #     raise ValueError("Invalid Application ID")
-
-    if event['session']['new']:
-        on_session_started({'requestId': event['request']['requestId']},
-                           event['session'])
-                           
-
-    if event['request']['type'] == "LaunchRequest":
-        return on_launch(event['request'], event['session'])
-    elif event['request']['type'] == "IntentRequest":
-        return on_intent(event['request'], event['session'])
-    elif event['request']['type'] == "SessionEndedRequest":
-        return on_session_ended(event['request'], event['session'])
-
 
 def on_session_started(session_started_request, session):
     """ Called when the session starts """
@@ -135,7 +106,7 @@ def initMQTT():
     # Connect
     #mqttc.username_pw_set(url.username, url.password) #CCI_ROGER
     mqttc.connect(url.hostname, url.port)
-    #mqttc.loop_start()
+    mqttc.loop_start()
     print("mqtt info, host:" + str(url.hostname) + ", port:" + str(url.port))
 
 
@@ -192,7 +163,7 @@ def talk(intent, session):
 
 def get_conversation(num):
     # Publish a message
-    mqttc.loop()
+    # mqttc.loop()
     data = {"Command":"SlapSlap","Pages":str(num)}
     message = json.dumps(data)
     print("mqtt message=> topic:ces/slap, payload:"+message)
@@ -237,8 +208,8 @@ def get_conversation(num):
         5:"<speak>Oops! You are lose! Do you wanna resume the game or start the punishment?</speak>",
         6:"<speak>OK! Welcome back, What level do you want to play?</speak>",
         7:"<speak>Let’s start the game, Are you ready?</speak>",
-        8:"<speak>five, four, three, two, one. Slap number55 in blue square with cat sound!"+audio+"</speak>",
-        9:"<speak>Oops! You are lose! Do you wanna resume the game or start the punishment?</speak>",
+        8:"<speak>five, four, three, two, one. Slap number 22 in blue circle with cat sound!"+audio+"</speak>",
+        9:"<speak>Great! Do you wanna continue?</speak>",
         10:"<speak>bye bye</speak>"
     }
     
@@ -350,4 +321,33 @@ def build_response(session_attributes, speechlet_response):
     }
 
 
-initMQTT()
+def lambda_handler(event, context):
+    initMQTT()
+
+    """ Route the incoming request based on type (LaunchRequest, IntentRequest,
+    etc.) The JSON body of the request is provided in the event parameter.
+    """
+    print("event.session.application.applicationId=" +
+          event['session']['application']['applicationId'])
+    print(event["context"]["System"]["device"])
+
+    """
+    Uncomment this if statement and populate with your skill's application ID to
+    prevent someone else from configuring a skill that sends requests to this
+    function.
+    """
+    # if (event['session']['application']['applicationId'] !=
+    #         "amzn1.echo-sdk-ams.app.[unique-value-here]"):
+    #     raise ValueError("Invalid Application ID")
+
+    if event['session']['new']:
+        on_session_started({'requestId': event['request']['requestId']},
+                           event['session'])
+                           
+
+    if event['request']['type'] == "LaunchRequest":
+        return on_launch(event['request'], event['session'])
+    elif event['request']['type'] == "IntentRequest":
+        return on_intent(event['request'], event['session'])
+    elif event['request']['type'] == "SessionEndedRequest":
+        return on_session_ended(event['request'], event['session'])
